@@ -31,11 +31,11 @@ public class MangaMxApplication {
 
         List<String> listReverse = new ArrayList<>();
 
-        Elements title = docCustomConn.select("h1.title");
+        String title = docCustomConn.select("h1.title").text().replaceAll("[^A-Za-z0-9\\s]", "");
         Elements chapters = docCustomConn.select("div.chapters span.btn-caps");
 
-        log.info("Manga that will download: {}", title.text());
-        String fileName = dirDownload + "/" + title.text();
+        log.info("Manga that will download: {}", title);
+        String fileName = dirDownload + "/" + title;
 
         File theDir = new File(fileName);
 
@@ -47,7 +47,7 @@ public class MangaMxApplication {
             theDir.mkdirs();
         }
 
-        ForkJoinPool myPool = new ForkJoinPool(2);
+        ForkJoinPool myPool = new ForkJoinPool(3);
         long startTime = System.nanoTime();
 
         myPool.submit(() ->
@@ -68,23 +68,18 @@ public class MangaMxApplication {
                                     Elements link = docCustomCon.select("div.read-slideshow img");
 
                                     link.forEach(element -> {
-                                        String fileSave;
-                                        final Pattern pattern = Pattern.compile("[a-zA-Z]+:\\/\\/([a-zA-Z]+(-[a-zA-Z]+)+)\\.[a-zA-Z]+3\\.[a-zA-Z]+\\/[a-zA-Z]+_[a-zA-Z]+\\/([^\\/]*)\\/([\\S][^\\/]*)\\/\\w*_([0-9]*).([a-z]*)", Pattern.CASE_INSENSITIVE);
-                                        final Matcher matcher = pattern.matcher(element.absUrl("src"));
-
-                                        while (matcher.find()) {
-                                            log.info("Image link: {}", matcher.group());
-                                            try (InputStream in = new URL(matcher.group()).openStream()) {
-                                                if (matcher.group(5).isBlank() && matcher.group(6).isBlank()) {
-                                                    fileSave = theDirChapters + "/" + matcher.group(9) + "." + matcher.group(10);
-                                                } else {
-                                                    fileSave = theDirChapters + "/" + matcher.group(5) + "." + matcher.group(6);
-                                                }
-                                                log.info("Folder you are saving: {}", fileSave);
-                                                Files.copy(in, Paths.get(fileSave));
-                                            } catch (Exception e) {
-                                                log.error("Erro", e);
+                                        final Pattern pattern = Pattern.compile("(.*\\.)(.*)", Pattern.CASE_INSENSITIVE);
+                                        String urlImage = element.absUrl("src");
+                                        final Matcher matcher = pattern.matcher(urlImage);
+                                        try (InputStream in = new URL(urlImage).openStream()) {
+                                            if (matcher.find()) {
+                                                Files.copy(in, Paths.get(theDirChapters + "/" + element.attr("id") + "." + matcher.group(2)));
+                                            } else {
+                                                Files.copy(in, Paths.get(theDirChapters + "/" + element.attr("id") + ".png"));
                                             }
+                                            log.info("Image: {}", urlImage);
+                                        } catch (Exception e) {
+                                            log.error("Erro", e);
                                         }
                                     });
                                 } catch (IOException | InterruptedException e) {
